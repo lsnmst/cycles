@@ -1,5 +1,5 @@
 create or replace function is_owner() returns boolean language sql stable as
-$$ select auth.jwt()->>'email' = 'generatiogummi@gmail.com' $$;
+$$ select auth.jwt()->>'email' = 'MIA@EMAI:NET' $$;
 
 create table islands(id uuid primary key default gen_random_uuid(), sort_order int, name text not null, description text, location_text text, lat double precision, lng double precision, created_on date default current_date, created_at timestamptz default now());
 create table notes(id uuid primary key default gen_random_uuid(), island_id uuid references islands on delete cascade, on_date date default current_date, body text not null default '', created_at timestamptz default now());

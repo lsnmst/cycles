@@ -6,8 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 body {
-  font-family: Georgia, 'Times New Roman', serif;
-  line-height: 1.6;
+  font-family: "Old Standard TT", serif;
+  font-weight: 500;
+  font-style: normal;
+  line-height: 1.35;
   color: #1c1c1a;
   background: #fff
 }
@@ -33,7 +35,7 @@ h2 {
 input,
 textarea,
 select {
-  border-bottom: 1px solid #999;
+  border-bottom: 1px solid #99999900;
   padding: .15rem .25rem;
   margin: .15rem 0;
   max-width: 100%;
@@ -41,7 +43,7 @@ select {
 }
 
 textarea {
-  border: 1px solid #bbb;
+  border: none;
   width: 100%;
   min-height: 6rem
 }
@@ -62,11 +64,51 @@ button:hover {
   color: #6b6b66
 }
 
+.luogo {
+  border: #2f5d3a double 0px;
+  background: #d2fb85;
+  padding: 2rem;
+}
+
+.info {
+  background: #fca0d8;
+  padding: 1rem;
+}
+
+.diario {
+  background: #82ffff;
+  padding: 1rem;
+}
+
+.specie {
+  background: #F4FF52;
+  padding: 1rem;
+}
+
+.species {
+  background: #F4FF52;
+  padding: 0rem;
+}
+
+.cosechescopro {
+  background: #ce9af7;
+  padding: 1rem;
+}
+
 td,
 th {
   padding: .1rem .4rem;
   text-align: left;
   font-weight: normal
+}
+
+input,
+.border {
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: 1px solid #2f5d3a30;
+  border-radius: 0;
 }
 
 @theme inline {
@@ -127,7 +169,7 @@ th {
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(58.305% 0.23863 28.392 / 0.034);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -220,4 +262,11 @@ th {
 :root {
   --primary: #2f5d3a;
   --primary-foreground: #fff;
+}
+
+@media (max-width: 480px) {
+  .mobnav {
+    display: grid;
+    gap: 0.1rem;
+  }
 }

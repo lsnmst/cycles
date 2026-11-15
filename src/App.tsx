@@ -38,6 +38,7 @@ function Login({ onRecovery }: { onRecovery: () => void }) {
   const [e, setE] = useState(''), [p, setP] = useState(''), [code, setCode] = useState('')
   const [step, setStep] = useState<'pw' | 'code'>('pw'), [mode, setMode] = useState<'email' | 'recovery'>('email')
   const [msg, setMsg] = useState('')
+  const em = e.trim().toLowerCase()
 
   const send = async (m: 'email' | 'recovery') => {
     if (!e) return setMsg('Inserisci prima l’email.')
@@ -281,18 +282,21 @@ function Places() {
 const startedAsRecovery = location.hash.includes('type=recovery')
 
 function NewPassword({ done }: { done: () => void }) {
-  const [p, setP] = useState(''), [err, setErr] = useState('')
+  const [p, setP] = useState(''), [p2, setP2] = useState(''), [show, setShow] = useState(false), [msg, setMsg] = useState('')
+  const t = show ? 'text' : 'password'
   return <form className="grid gap-2 max-w-sm" onSubmit={async e => {
     e.preventDefault()
+    if (p !== p2) return setMsg('Le due password non coincidono.')
     const { error } = await supabase.auth.updateUser({ password: p })
-    if (error) return setErr(error.message)
-    await supabase.auth.signOut({ scope: 'global' })
-    location.hash = '#/'; done()
+    if (error) return setMsg(error.message)
+    done()
   }}>
     <h1>Nuova password</h1>
-    <Input type="password" minLength={8} placeholder="nuova password (min. 8 caratteri)" value={p} onChange={e => setP(e.target.value)} />
+    <Input type={t} autoComplete="new-password" minLength={8} placeholder="nuova password (min. 8 caratteri)" value={p} onChange={e => setP(e.target.value)} />
+    <Input type={t} autoComplete="new-password" placeholder="ripeti la password" value={p2} onChange={e => setP2(e.target.value)} />
+    <label className="text-sm"><input type="checkbox" checked={show} onChange={e => setShow(e.target.checked)} /> Mostra password</label>
     <div><Button>Salva password</Button></div>
-    <span className="text-sm text-red-700">{err}</span>
+    <span className="text-sm text-red-700">{msg}</span>
   </form>
 }
 

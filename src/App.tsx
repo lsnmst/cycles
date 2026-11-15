@@ -139,6 +139,85 @@ function Calendar() {
   return <><h1>Calendario</h1><CalendarView species={sp} /></>
 }
 
+function NoteItem({ n, onDelete, onSaved }: { n: R; onDelete: () => void; onSaved: () => void }) {
+  const [edit, setEdit] = useState(false), [body, setBody] = useState(n.body), [date, setDate] = useState(n.on_date)
+  const save = async () => {
+    const { error } = await supabase.from('notes').update({ body, on_date: date }).eq('id', n.id)
+    if (error) return alert(error.message)
+    setEdit(false); onSaved()
+  }
+  return <div className="my-4 diario">
+    {edit ? <div className="grid gap-2 max-w-xl">
+      <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      <Textarea value={body} onChange={e => setBody(e.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={save}>Salva</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setBody(n.body); setDate(n.on_date); setEdit(false) }}>Annulla</Button>
+      </div>
+    </div> : <>
+      <span className="m">{n.on_date}</span>{' '}
+      <Button variant="ghost" size="sm" onClick={() => setEdit(true)}>Modifica</Button>
+      <Button variant="ghost" size="sm" onClick={onDelete}>Elimina nota</Button>
+      <p className="whitespace-pre-wrap">{n.body}</p>
+    </>}
+    <MediaBlock col="note_id" id={n.id} />
+  </div>
+}
+
+function FactItem({ f, onDelete, onSaved }: { f: R; onDelete: () => void; onSaved: () => void }) {
+  const [edit, setEdit] = useState(false), [title, setTitle] = useState(f.title), [body, setBody] = useState(f.body ?? '')
+  const save = async () => {
+    if (!title) return
+    const { error } = await supabase.from('species_facts').update({ title, body }).eq('id', f.id)
+    if (error) return alert(error.message)
+    setEdit(false); onSaved()
+  }
+  return <div className="my-4 cosechescopro">
+    {edit ? <div className="grid gap-2 max-w-xl">
+      <Input value={title} onChange={e => setTitle(e.target.value)} />
+      <Textarea value={body} onChange={e => setBody(e.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={save}>Salva</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setTitle(f.title); setBody(f.body ?? ''); setEdit(false) }}>Annulla</Button>
+      </div>
+    </div> : <>
+      <b>{f.title}</b>{' '}
+      <Button variant="ghost" size="sm" onClick={() => setEdit(true)}>Modifica</Button>
+      <Button variant="ghost" size="sm" onClick={onDelete}>Elimina voce</Button>
+      <p className="whitespace-pre-wrap">{f.body}</p>
+    </>}
+    <MediaBlock col="fact_id" id={f.id} />
+  </div>
+}
+
+function PlaceItem({ p, onDelete, onSaved }: { p: R; onDelete: () => void; onSaved: () => void }) {
+  const [edit, setEdit] = useState(false), [title, setTitle] = useState(p.title), [body, setBody] = useState(p.body ?? '')
+  const save = async () => {
+    if (!title) return
+    const { error } = await supabase.from('places').update({ title, body }).eq('id', p.id)
+    if (error) return alert(error.message)
+    setEdit(false); onSaved()
+  }
+  return <div className="my-4 luogo">
+    {edit ? <div className="grid gap-2 max-w-xl">
+      <Input value={title} onChange={e => setTitle(e.target.value)} />
+      <Textarea value={body} onChange={e => setBody(e.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={save}>Salva</Button>
+        <Button size="sm" variant="ghost" onClick={() => { setTitle(p.title); setBody(p.body ?? ''); setEdit(false) }}>Annulla</Button>
+      </div>
+    </div> : <>
+      <b>{p.title}</b> <span className="m">{p.islands?.name}</span>{' '}
+      <a href={`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=16/${p.lat}/${p.lng}`} target="_blank">{p.lat}, {p.lng}</a>{' '}
+      <p className="whitespace-pre-wrap">{p.body}</p>
+    </>}
+    <MediaBlock col="place_id" id={p.id} />
+    <Button variant="ghost" size="sm" onClick={() => setEdit(true)}>Modifica</Button>
+    <Button variant="ghost" size="sm" onClick={onDelete}>Elimina luogo</Button>
+
+  </div>
+}
+
 function Island({ id }: { id: string }) {
   const [is, loadI] = useRows('*', 'islands', 'id', id); const i = is[0]
   const [notes, loadN] = useRows('*', 'notes', 'island_id', id, 'on_date')
@@ -169,6 +248,12 @@ function Island({ id }: { id: string }) {
     await purgeMedia('note_id', [nid])
     await supabase.from('notes').delete().eq('id', nid); loadN()
   }
+  const unlink = async (sid: string, name: string) => {
+    if (!confirm(`Togliere «${name}» da quest'isola? Resta nell'archivio.`)) return
+    const { error } = await supabase.from('island_species').delete().match({ island_id: id, species_id: sid })
+    if (error) return alert(error.message)
+    loadS()
+  }
   return <><br /><a href="#/">← Isole</a><h1>{i.name}</h1>
     <h2 className="info">Info</h2>
     <div className="info"><Input placeholder="Nome" value={f.name ?? ''} onChange={e => setF({ ...f, name: e.target.value })} /><br />
@@ -183,16 +268,12 @@ function Island({ id }: { id: string }) {
       <Input key={nonce} type="file" multiple accept="image/*,video/*" onChange={e => setFiles([...(e.target.files ?? [])])} />
       <div><Button variant="outline" size="sm" onClick={saveNote}>Aggiungi nota</Button></div>
     </div>
-    {[...notes].reverse().map(n => <div key={n.id} className="my-4 diario">
-      <span className="m">{n.on_date}</span>
-      <p className="whitespace-pre-wrap">{n.body}</p>
-      <MediaBlock col="note_id" id={n.id} />
-      <Button variant="outline" size="sm" onClick={() => delNote(n.id)}>🗑️</Button>
-    </div>)}
+    {[...notes].reverse().map(n => <NoteItem key={n.id} n={n} onDelete={() => delNote(n.id)} onSaved={loadN} />)}
     <h2 className="specie">Specie ({sp.length})</h2>
     {[...new Set(sp.map(x => x.role ?? 'senza ruolo'))].map(r => <div key={r} className="my-2">
       <div className="m">{r}</div>
       {sp.filter(x => (x.role ?? 'senza ruolo') === r).map(x => <div className="species" key={x.species.id}>
+        <button className="m ml-1 text-xs hover:text-red-700" title="Togli dall'isola" onClick={() => unlink(x.species.id, x.species.common_name)}>×</button>
         <a href={`#/specie/${x.species.id}`}>{x.species.common_name}</a> <i className="m">{x.species.scientific_name}</i>
       </div>)}
     </div>)}
@@ -224,12 +305,14 @@ function Plant({ id }: { id: string }) {
   if (!s) return null
   const delFact = async (fid: string) => {
     if (!confirm('Eliminare questa voce?')) return
+    await purgeMedia('fact_id', [fid])
     const { error } = await supabase.from('species_facts').delete().eq('id', fid)
     if (error) return alert(error.message)
     loadF()
   }
   const delSpecie = async () => {
     if (!confirm(`Eliminare «${s.common_name}» dall'archivio? Verrà tolta da tutte le isole e perderà note, scoperte e calendario.`)) return
+    await purgeMedia('fact_id', facts.map(f => f.id))
     const { error } = await supabase.from('species').delete().eq('id', id)
     if (error) return alert(error.message)
     location.hash = '#/specie'
@@ -241,10 +324,7 @@ function Plant({ id }: { id: string }) {
     <h2>Note generali</h2><Textarea value={notes} onChange={e => setNotes(e.target.value)} />
     <Button variant="outline" size="sm" onClick={() => supabase.from('species').update({ notes }).eq('id', id).then(() => { })}>Salva note</Button>
     <h2>Cose che scopro</h2>
-    {facts.map(f => <div key={f.id} className="my-2 cosechescopro">
-      <b>{f.title}</b> <Button variant="ghost" size="sm" onClick={() => delFact(f.id)}>🗑️</Button>
-      <p className="whitespace-pre-wrap">{f.body}</p>
-    </div>)}
+    {facts.map(f => <FactItem key={f.id} f={f} onDelete={() => delFact(f.id)} onSaved={loadF} />)}
     <Input placeholder="Titolo" value={t} onChange={e => setT(e.target.value)} /><Textarea placeholder="Testo" value={b} onChange={e => setB(e.target.value)} />
     <Button variant="outline" size="sm" onClick={() => t && ins('species_facts', { species_id: id, title: t, body: b }, () => { setT(''); setB(''); loadF() })}>Aggiungi</Button>
     <h2>Calendario</h2><table><thead><tr><th></th>{MESI.map((m, i) => <th key={i}>{m}</th>)}</tr></thead>
@@ -264,14 +344,7 @@ function Places() {
     await supabase.from('places').delete().eq('id', pid); load()
   }
   return <><h1>Luoghi</h1>
-    {r.map(p => <div key={p.id} className="my-4 luogo">
-      <a href={`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=16/${p.lat}/${p.lng}`} target="_blank">{p.lat}, {p.lng}</a><br />
-      <b>{p.title}</b>
-      <span className="m">{p.islands?.name}</span>{' '}
-      <p className="whitespace-pre-wrap">{p.body}</p>
-      <MediaBlock col="place_id" id={p.id} />
-      <Button variant="outline" size="sm" onClick={() => delPlace(p.id)}>🗑️</Button><br />
-    </div>)}
+    {r.map(p => <PlaceItem key={p.id} p={p} onDelete={() => delPlace(p.id)} onSaved={load} />)}
     <h2>Nuovo luogo</h2><Input placeholder="Titolo" value={f.title} onChange={e => setF({ ...f, title: e.target.value })} />
     <NativeSelect value={f.island_id} onChange={e => setF({ ...f, island_id: e.target.value })}><option value="">Nessuna isola</option>{is.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</NativeSelect><br />
     <Input placeholder="lat" value={f.lat} onChange={e => setF({ ...f, lat: e.target.value })} /> <Input placeholder="lng" value={f.lng} onChange={e => setF({ ...f, lng: e.target.value })} /> <Button variant="outline" size="sm" onClick={here}>Usa la mia posizione</Button>

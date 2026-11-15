@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
-export type Col = 'note_id' | 'place_id'
+export type Col = 'note_id' | 'place_id' | 'fact_id'
 const MAX_VIDEO = 50 * 1024 * 1024 // verifica il limite in Supabase → Storage → Settings
+const DIR: Record<Col, string> = { note_id: 'notes', place_id: 'places', fact_id: 'facts' }
 
 export async function resizeImage(file: File, max = 1600, q = 0.82): Promise<Blob> {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -17,7 +18,7 @@ export async function uploadFiles(files: File[], col: Col, id: string) {
         if (f.type.startsWith('image/')) { body = await resizeImage(f); ext = 'jpg'; kind = 'photo' }
         else if (f.type.startsWith('video/')) { if (f.size > MAX_VIDEO) throw new Error(`${f.name}: video oltre 50 MB, usa un link`) }
         else throw new Error(`${f.name}: formato non supportato`)
-        const path = `${col === 'note_id' ? 'notes' : 'places'}/${id}/${crypto.randomUUID()}.${ext}`
+        const path = `${DIR[col]}/${id}/${crypto.randomUUID()}.${ext}`
         const up = await supabase.storage.from('media').upload(path, body, { contentType: body.type })
         if (up.error) throw up.error
         const ro = await supabase.from('note_media').insert({ [col]: id, kind, path })

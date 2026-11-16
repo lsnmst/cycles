@@ -312,13 +312,26 @@ function Species() {
 }
 
 function Plant({ id }: { id: string }) {
-  const [ss] = useRows('*', 'species', 'id', id); const s = ss[0]
+  const [ss, loadSp] = useRows('*', 'species', 'id', id); const s = ss[0]
   const [facts, loadF] = useRows('*', 'species_facts', 'species_id', id)
   const [cal, loadC] = useRows('*', 'species_calendar', 'species_id', id, 'month')
   const [isl] = useRows('role,islands(id,name)', 'island_species', 'species_id', id, 'role')
-  const [notes, setNotes] = useState(''), [t, setT] = useState(''), [b, setB] = useState('')
-  useEffect(() => { if (s) setNotes(s.notes ?? '') }, [s?.id])
+  const [notes, setNotes] = useState(''), [saved, setSaved] = useState(''), [msg, setMsg] = useState('')
+  const [t, setT] = useState(''), [b, setB] = useState('')
+  useEffect(() => {
+    if (!s) return
+    const incoming = s.notes ?? ''
+    setNotes(cur => (cur === saved ? incoming : cur))
+    setSaved(incoming)
+  }, [s?.id, s?.notes])
   if (!s) return null
+  const saveNotes = async () => {
+    if (!navigator.onLine) return setMsg('Sei offline: le note non sono state salvate.')
+    const { data, error } = await supabase.from('species').update({ notes }).eq('id', id).select('id')
+    if (error) return setMsg(error.message)
+    if (!data?.length) return setMsg('Nessuna riga aggiornata: controlla la sessione e le regole RLS.')
+    setSaved(notes); setMsg('Salvato.'); loadSp()
+  }
   const delFact = async (fid: string) => {
     if (!confirm('Eliminare questa voce?')) return
     await purgeMedia('fact_id', [fid])
@@ -337,8 +350,10 @@ function Plant({ id }: { id: string }) {
   const tog = async (a: string, m: number) => { has(a, m) ? await supabase.from('species_calendar').delete().match({ species_id: id, activity: a, month: m }) : await supabase.from('species_calendar').insert({ species_id: id, activity: a, month: m }); loadC() }
   return <><br /><a href="#/specie">← Archivio</a><h1>{s.common_name} <i className="m text-base">{s.scientific_name}</i></h1>
     <h2>Isole</h2>{isl.map(x => <p key={x.islands.id}><a href={`#/isola/${x.islands.id}`}>{x.islands.name}</a> · {x.role}</p>)}
-    <h2>Note generali</h2><Textarea value={notes} onChange={e => setNotes(e.target.value)} />
-    <Button variant="outline" size="sm" onClick={() => supabase.from('species').update({ notes }).eq('id', id).then(() => { })}>Salva note</Button>
+    <h2>Note generali</h2>
+    <Textarea value={notes} onChange={e => { setNotes(e.target.value); setMsg('') }} />
+    <Button variant="outline" size="sm" onClick={saveNotes}>Salva note</Button>
+    <span className="m text-sm"> {notes !== saved ? 'Modifiche non salvate' : msg}</span>
     <h2>Cose che scopro</h2>
     {facts.map(f => <FactItem key={f.id} f={f} onDelete={() => delFact(f.id)} onSaved={loadF} />)}
     <Input placeholder="Titolo" value={t} onChange={e => setT(e.target.value)} /><Textarea placeholder="Testo" value={b} onChange={e => setB(e.target.value)} />

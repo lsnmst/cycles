@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
-import { cached, fetchRows, warm, useOnline } from './lib/cache'
+import { cached, fetchRows, warm, useOnline, peek, rowsKey } from './lib/cache'
 import { exportZip } from './lib/export'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,12 +25,15 @@ function useHash() {
 function useRows(sel: string, table: string, col?: string, val?: string, order = 'created_at') {
   const [r, s] = useState<R[]>([])
   const load = async () => {
+    const hit = await peek<R[]>(rowsKey(sel, table, col, val, order))
+    if (hit) s(hit)
     try { s(await fetchRows(sel, table, col, val, order)) }
-    catch (e: any) { console.error(`[${table}]`, e.message); s([]) }
+    catch (e: any) { console.error(`[${table}]`, e.message); if (!hit) s([]) }
   }
   useEffect(() => { load() }, [table, col, val])
   return [r, load] as const
 }
+
 const ins = async (t: string, v: R, done: () => void) => {
   if (!navigator.onLine) return alert('Sei offline: per ora le modifiche richiedono la connessione.')
   const { error } = await supabase.from(t).insert(v)
@@ -95,6 +98,7 @@ function Islands() {
 function CalendarView({ species }: { species: R[] }) {
   const [all, setAll] = useState<R[]>([]), [a, setA] = useState('tutte')
   useEffect(() => {
+    peek<R[]>('cal|all').then(h => { if (h) setAll(h) })
     cached<R[]>('cal|all', () => supabase.from('species_calendar').select('*')).then(r => setAll(r.data ?? [])).catch(() => { })
   }, [])
   const ids = new Set(species.map(s => s.id))

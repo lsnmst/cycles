@@ -3,8 +3,10 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { uploadFiles, addVideoUrl, removeMedia, type Col } from '@/lib/media'
+import { useOnline } from '@/lib/cache'
 
 export function MediaBlock({ col, id }: { col: Col; id: string }) {
+  const online = useOnline()
   const [rows, setRows] = useState<any[]>([]), [urls, setUrls] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false), [link, setLink] = useState(''), [err, setErr] = useState(''), [nonce, setNonce] = useState(0)
 
@@ -24,6 +26,8 @@ export function MediaBlock({ col, id }: { col: Col; id: string }) {
     try { await uploadFiles(files, col, id) } catch (x: any) { setErr(x.message) }
     setBusy(false); setNonce(n => n + 1); load()
   }
+
+  if (!online) return null
 
   return <div className="my-2">
     <div className="flex flex-wrap gap-3">

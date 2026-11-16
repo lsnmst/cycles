@@ -95,6 +95,10 @@ button:hover {
   padding: 1rem;
 }
 
+.cache {
+  font-size: 0.7rem;
+}
+
 td,
 th {
   padding: .1rem .4rem;

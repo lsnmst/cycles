@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+import { cached, fetchRows, warm, useOnline } from './lib/cache'
 import { exportZip } from './lib/export'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,15 +25,18 @@ function useHash() {
 function useRows(sel: string, table: string, col?: string, val?: string, order = 'created_at') {
   const [r, s] = useState<R[]>([])
   const load = async () => {
-    let q = supabase.from(table).select(sel); if (col) q = q.eq(col, val!)
-    const { data, error } = await q.order(order)
-    if (error) console.error(`[${table}]`, error.message)
-    s((data as any) ?? [])
+    try { s(await fetchRows(sel, table, col, val, order)) }
+    catch (e: any) { console.error(`[${table}]`, e.message); s([]) }
   }
   useEffect(() => { load() }, [table, col, val])
   return [r, load] as const
 }
-const ins = (t: string, v: R, done: () => void) => supabase.from(t).insert(v).then(done)
+const ins = async (t: string, v: R, done: () => void) => {
+  if (!navigator.onLine) return alert('Sei offline: per ora le modifiche richiedono la connessione.')
+  const { error } = await supabase.from(t).insert(v)
+  if (error) { alert(error.code === '23505' ? 'Esiste già una voce con questo nome.' : error.message); return }
+  done()
+}
 
 function Login({ onRecovery }: { onRecovery: () => void }) {
   const [e, setE] = useState(''), [p, setP] = useState(''), [code, setCode] = useState('')
@@ -89,12 +93,12 @@ function Islands() {
 }
 
 function CalendarView({ species }: { species: R[] }) {
-  const ids = species.map(s => s.id).join()
-  const [cal, setCal] = useState<R[]>([]), [a, setA] = useState('tutte')
+  const [all, setAll] = useState<R[]>([]), [a, setA] = useState('tutte')
   useEffect(() => {
-    if (!ids) { setCal([]); return }
-    supabase.from('species_calendar').select('*').in('species_id', ids.split(',')).then(({ data }) => setCal(data ?? []))
-  }, [ids])
+    cached<R[]>('cal|all', () => supabase.from('species_calendar').select('*')).then(r => setAll(r.data ?? [])).catch(() => { })
+  }, [])
+  const ids = new Set(species.map(s => s.id))
+  const cal = all.filter(c => ids.has(c.species_id))
   const acts = (sid: string, m: number) =>
     ATT.filter(x => (a === 'tutte' || x === a) && cal.some(c => c.species_id === sid && c.month === m && c.activity === x))
   const rows = [...species].sort((x, y) => (x.common_name ?? '').localeCompare(y.common_name ?? ''))
@@ -291,8 +295,16 @@ function Species() {
   const [r, load] = useRows('*', 'species', undefined, undefined, 'common_name'); const [n, setN] = useState(''), [c, setC] = useState('')
   return <><h1>Archivio botanico</h1>
     {r.map(s => <p key={s.id}><a href={`#/specie/${s.id}`}>{s.common_name}</a> <i className="m">{s.scientific_name}</i></p>)}
-    <br /><br /><form onSubmit={e => { e.preventDefault(); ins('species', { common_name: c, scientific_name: n }, () => { setN(''); setC(''); load() }) }}>
-      <Input placeholder="Nome comune" value={c} onChange={e => setC(e.target.value)} /> <Input placeholder="Nome scientifico" value={n} onChange={e => setN(e.target.value)} /> <Button variant="outline" size="sm">Aggiungi specie</Button></form></>
+    <br /><br /><form className="flex flex-wrap gap-2 items-center mt-4" onSubmit={e => {
+      e.preventDefault()
+      const sci = n.trim(), com = c.trim()
+      if (!sci) return alert('Il nome scientifico è obbligatorio.')
+      ins('species', { common_name: com || sci, scientific_name: sci }, () => { setN(''); setC(''); load() })
+    }}>
+      <Input className="w-48" placeholder="Nome comune" value={c} onChange={e => setC(e.target.value)} />
+      <Input className="w-56" placeholder="Nome scientifico (obbligatorio)" value={n} onChange={e => setN(e.target.value)} />
+      <Button type="submit" variant="outline" size="sm">Aggiungi specie</Button>
+    </form></>
 }
 
 function Plant({ id }: { id: string }) {
@@ -373,12 +385,31 @@ function NewPassword({ done }: { done: () => void }) {
   </form>
 }
 
+function OfflineBar() {
+  const online = useOnline()
+  const [busy, setBusy] = useState(false), [at, setAt] = useState(localStorage.getItem('warm-at'))
+  const run = async () => {
+    setBusy(true)
+    try { await warm(); setAt(localStorage.getItem('warm-at')) } catch (e) { console.error(e) }
+    setBusy(false)
+  }
+  useEffect(() => { if (online && (!at || Date.now() - +new Date(at) > 12 * 3600e3)) run() }, [online])
+  const when = at ? new Date(at).toLocaleString('it-IT') : 'mai'
+  return <div className="m text-sm py-1 cache">
+    {online
+      ? <>Dati salvati sul dispositivo: {when} <Button variant="ghost" size="sm" disabled={busy} onClick={run}>{busy ? 'Aggiornamento…' : 'Aggiorna ora'}</Button></>
+      : <>Offline, sola lettura. Dati aggiornati: {when}</>}
+  </div>
+}
+
+const hasStoredSession = () => Object.keys(localStorage).some(k => k.startsWith('sb-') && k.endsWith('-auth-token') && localStorage.getItem(k))
+
 export default function App() {
   const h = useHash(); const [ok, setOk] = useState<boolean | null>(null)
   const [recovery, setRecovery] = useState(false)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setOk(!!data.session))
-    const { data } = supabase.auth.onAuthStateChange((_, s) => setOk(!!s))
+    supabase.auth.getSession().then(({ data }) => setOk(!!data.session || (!navigator.onLine && !!hasStoredSession())))
+    const { data } = supabase.auth.onAuthStateChange((_, s) => setOk(!!s || (!navigator.onLine && !!hasStoredSession())))
     return () => data.subscription.unsubscribe()
   }, [])
   if (ok === null) return null
@@ -387,5 +418,6 @@ export default function App() {
   return <div className="max-w-3xl mx-auto px-4 pb-16">{!ok ? <Login onRecovery={() => setRecovery(true)} /> : <>
     <nav className="py-3 border-b border-neutral-300 flex gap-4 mobnav"><a href="#/">Isole</a><a href="#/specie">Archivio</a><a href="#/calendario">Calendario</a><a href="#/luoghi">Luoghi</a>
       <span className="ml-auto flex gap-4"><a href="#/" onClick={e => { e.preventDefault(); exportZip() }}>Esporta tutto</a><a href="#/" onClick={() => supabase.auth.signOut()}>Esci</a></span></nav>
+    <OfflineBar />
     {a === 'isola' ? <Island id={id} /> : a === 'specie' ? (id ? <Plant id={id} /> : <Species />) : a === 'calendario' ? <Calendar /> : a === 'luoghi' ? <Places /> : <Islands />}</>}</div>
 }

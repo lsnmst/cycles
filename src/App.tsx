@@ -41,6 +41,52 @@ const ins = async (t: string, v: R, done: () => void) => {
   done()
 }
 
+const REPO = 'https://github.com/lsnmst/cycles'
+const SHOTS = [
+  { src: 'screens/calendario.webp', cap: '' },
+  { src: 'screens/isola.webp', cap: '' },
+  { src: 'screens/luoghi.webp', cap: '' },
+]
+
+function Landing({ onRecovery }: { onRecovery: () => void }) {
+  return (
+    <div className="grid gap-8 py-6">
+      <header className="grid gap-2 max-w-prose">
+        <h1>Cycles of Care · diario</h1>
+        <p>
+          Un diario per prendersi cura: isole di coltivazione, specie, note con foto
+          e un calendario che mostra mese per mese cosa c’è da fare.
+        </p>
+        <p className="m">
+          È un progetto personale e l’accesso è riservato. Se ti piace l'idea, il codice è aperto:
+          puoi <a href={REPO} target="_blank" rel="noreferrer">installarti la tua copia</a>,
+          gratis e con i tuoi dati.
+        </p>
+      </header>
+
+      <div className="grid gap-8 md:grid-cols-[1fr_20rem] items-start">
+        <aside className="luogo order-first md:order-last md:sticky md:top-4">
+          <Login onRecovery={onRecovery} />
+        </aside>
+        <section className="grid gap-6">
+          {SHOTS.map(s => (
+            <figure key={s.src} className="grid gap-1 m-0">
+              <img
+                src={import.meta.env.BASE_URL + s.src}
+                alt={s.cap}
+                loading="lazy"
+                className="w-full border border-neutral-300"
+                onError={e => { (e.currentTarget.closest('figure') as HTMLElement).style.display = 'none' }}
+              />
+              <figcaption className="text-sm m">{s.cap}</figcaption>
+            </figure>
+          ))}
+        </section>
+      </div>
+    </div>
+  )
+}
+
 function Login({ onRecovery }: { onRecovery: () => void }) {
   const [e, setE] = useState(''), [p, setP] = useState(''), [code, setCode] = useState('')
   const [step, setStep] = useState<'pw' | 'code'>('pw'), [mode, setMode] = useState<'email' | 'recovery'>('email')
@@ -67,7 +113,7 @@ function Login({ onRecovery }: { onRecovery: () => void }) {
     if (error) setMsg(error.message)
   }
   return <div className="grid gap-2 max-w-sm">
-    <h1>Accedi</h1>
+    <h2>Accedi</h2>
     <Input placeholder="email" value={e} onChange={x => setE(x.target.value)} disabled={step === 'code'} />
     {step === 'pw' ? <form className="grid gap-2" onSubmit={login}>
       <Input type="password" placeholder="password" value={p} onChange={x => setP(x.target.value)} />
@@ -374,13 +420,17 @@ function Places() {
     await purgeMedia('place_id', [pid])
     await supabase.from('places').delete().eq('id', pid); load()
   }
-  return <><h1>Luoghi</h1>
-    {r.map(p => <PlaceItem key={p.id} p={p} onDelete={() => delPlace(p.id)} onSaved={load} />)}
+  return <>
+    <h1>Luoghi</h1>
     <h2>Nuovo luogo</h2><Input placeholder="Titolo" value={f.title} onChange={e => setF({ ...f, title: e.target.value })} />
     <NativeSelect value={f.island_id} onChange={e => setF({ ...f, island_id: e.target.value })}><option value="">Nessuna isola</option>{is.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</NativeSelect><br />
     <Input placeholder="lat" value={f.lat} onChange={e => setF({ ...f, lat: e.target.value })} /> <Input placeholder="lng" value={f.lng} onChange={e => setF({ ...f, lng: e.target.value })} /> <Button variant="outline" size="sm" onClick={here}>Usa la mia posizione</Button>
     <Textarea placeholder="Note" value={f.body} onChange={e => setF({ ...f, body: e.target.value })} />
-    <Button variant="outline" size="sm" onClick={() => f.title && f.lat && ins('places', { ...f, lat: +f.lat, lng: +f.lng, island_id: f.island_id || null }, () => { setF({ title: '', body: '', lat: '', lng: '', island_id: '' }); load() })}>Salva luogo</Button></>
+    <Button variant="outline" size="sm" onClick={() => f.title && f.lat && ins('places', { ...f, lat: +f.lat, lng: +f.lng, island_id: f.island_id || null }, () => { setF({ title: '', body: '', lat: '', lng: '', island_id: '' }); load() })}>Salva luogo</Button>
+    {[...r]
+      .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))
+      .map(p => <PlaceItem key={p.id} p={p} onDelete={() => delPlace(p.id)} onSaved={load} />)}
+  </>
 }
 
 const startedAsRecovery = location.hash.includes('type=recovery')
@@ -434,7 +484,7 @@ export default function App() {
   if (ok === null) return null
   if (recovery) return <div className="max-w-3xl mx-auto px-4"><NewPassword done={() => setRecovery(false)} /></div>
   const [, a, id] = h.split('/')
-  return <div className="max-w-3xl mx-auto px-4 pb-16">{!ok ? <Login onRecovery={() => setRecovery(true)} /> : <>
+  return <div className="max-w-3xl mx-auto px-4 pb-16">{!ok ? <Landing onRecovery={() => setRecovery(true)} /> : <>
     <nav className="py-3 border-b border-neutral-300 flex gap-4 mobnav"><a href="#/">Isole</a><a href="#/specie">Archivio</a><a href="#/calendario">Calendario</a><a href="#/luoghi">Luoghi</a>
       <span className="ml-auto flex gap-4"><a href="#/" onClick={e => { e.preventDefault(); exportZip() }}>Esporta tutto</a><a href="#/" onClick={() => supabase.auth.signOut()}>Esci</a></span></nav>
     <OfflineBar />

@@ -1,0 +1,35 @@
+name: Keepalive Supabase
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'   # ogni 3 giorni, 06:17 UTC
+  workflow_dispatch:          # per lanciarlo a mano dalla scheda Actions
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping del database
+        env:
+          URL: ${{ secrets.VITE_SUPABASE_URL }}
+          KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          curl -fsS -X POST "$URL/rest/v1/rpc/ping" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}'
+
+      # Una volta al mese un piccolo commit, così GitHub non disattiva il cron
+      - uses: actions/checkout@v4
+        if: github.event_name == 'schedule'
+      - name: Attività mensile sul repo
+        if: github.event_name == 'schedule'
+        run: |
+          [ "$(date -u +%d)" = "01" ] || exit 0
+          date -u +%F > .github/keepalive
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive
+          git commit -m "chore: keepalive $(date -u +%F)"
+          git push

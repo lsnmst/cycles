@@ -18,3 +18,23 @@ do $$ declare t text; begin
 
 insert into storage.buckets(id,name,public) values('media','media',false);
 create policy media_owner on storage.objects for all using (bucket_id='media' and is_owner()) with check (bucket_id='media' and is_owner());
+
+create table if not exists public.heartbeat (
+  id int primary key default 1 check (id = 1),
+  pinged_at timestamptz not null default now()
+);
+alter table public.heartbeat enable row level security;  -- nessuna policy: dall'API la tabella è invisibile
+
+create or replace function public.ping()
+returns timestamptz
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.heartbeat (id, pinged_at) values (1, now())
+  on conflict (id) do update set pinged_at = excluded.pinged_at
+  returning pinged_at;
+$$;
+
+revoke all on function public.ping() from public;
+grant execute on function public.ping() to anon;
